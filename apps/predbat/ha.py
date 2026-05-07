@@ -30,7 +30,7 @@ import time
 from utils import str2time, strptime_aware
 from const import TIME_FORMAT_HA, TIMEOUT, TIME_FORMAT_HA_TZ
 from component_base import ComponentBase
-from http_sync import http_get, http_post, HttpError, HttpJSONDecodeError, HttpTimeout, HttpConnectionError, run_async, RunThread  # noqa: F401 (run_async and RunThread are imported from here by other modules)
+from http_sync import http_get, http_post, http_request, HttpError, HttpJSONDecodeError, HttpTimeout, HttpConnectionError, run_async, RunThread  # noqa: F401 (run_async and RunThread are imported from here by other modules)
 
 # Maximum days of history fetched per request. Long windows are split so only one chunk's
 # response body, decoded string and parsed objects are resident at a time.
@@ -1390,6 +1390,15 @@ class HAInterface(ComponentBase):
             data_frame = {"domain": domain, "service": service, "service_data": data}
             return run_async(self.base.trigger_callback(data_frame))
 
+    def delete_state(self, entity_id):
+        """
+        Delete a state from Home Assistant.
+        """
+        self.db_mirror_list.pop(entity_id, None)
+        self.state_data.pop(entity_id.lower(), None)
+        if self.ha_key:
+            self.api_call("/api/states/{}".format(entity_id), delete=True)
+
     def outage_failure(self, timer, reason):
         """
         Record that Home Assistant could not be reached (restarting, 502, timeout, refused connection...) on one channel.
@@ -1426,13 +1435,14 @@ class HAInterface(ComponentBase):
         """
         self.outage_failure(self.outage, reason)
 
-    def api_call(self, endpoint, data_in=None, post=False, core=True, silent=False, track_outage=True):
+    def api_call(self, endpoint, data_in=None, post=False, core=True, silent=False, track_outage=True, delete=False):
         """
         Make an API call to Home Assistant.
 
         :param endpoint: The API endpoint to call.
         :param data_in: The data to send in the body of the request.
         :param post: True if this is a POST request, False for GET.
+        :param delete: True if this is a DELETE request
         :param core: True is this is a call to HA Core, False if it is a Supervisor call
         :param silent: True if warning message from the API call is to be suppressed
         :param track_outage: False when the caller is already retrying for itself and the outage timer must not also give up (initialize)
@@ -1457,7 +1467,9 @@ class HAInterface(ComponentBase):
         track = core and track_outage
         self.last_api_status = None
         try:
-            if post:
+            if delete:
+                response = http_request("DELETE", url, headers=headers, timeout=TIMEOUT)
+            elif post:
                 if data_in:
                     response = http_post(url, headers=headers, json=data_in, timeout=TIMEOUT)
                 else:
@@ -1488,7 +1500,7 @@ class HAInterface(ComponentBase):
                 if track:
                     self.ha_unavailable("HTTP {} from {}".format(response.status_code, endpoint))
                 return None
-            data = response.json()
+            data = {} if delete and not response.text else response.json()
             if track:
                 self.ha_available()
         except HttpJSONDecodeError:
