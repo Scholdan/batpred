@@ -1395,12 +1395,15 @@ class HAInterface(ComponentBase):
         Delete a state from Home Assistant.
         """
         entity_id_lower = entity_id.lower()
+        success = True
+        if self.db_enable:
+            success = self.db_manager is not None and self.db_manager.delete_state_db(entity_id_lower) is not None
         self.db_mirror_list.pop(entity_id, None)
         self.db_mirror_list.pop(entity_id_lower, None)
         self.state_data.pop(entity_id_lower, None)
         if self.ha_key:
-            self.api_call("/api/states/{}".format(entity_id), delete=True)
-        return True
+            success = self.api_call("/api/states/{}".format(entity_id_lower), delete=True) is not None and success
+        return success
 
     def outage_failure(self, timer, reason):
         """
@@ -1502,6 +1505,11 @@ class HAInterface(ComponentBase):
                     self.log("Warn: HTTP {} from {}".format(response.status_code, url))
                 if track:
                     self.ha_unavailable("HTTP {} from {}".format(response.status_code, endpoint))
+                return None
+            if delete and not 200 <= response.status_code < 300:
+                if track:
+                    self.ha_available()
+                self.log("Warn: HTTP status {} deleting state from {}".format(response.status_code, url))
                 return None
             data = {} if delete and not response.text else response.json()
             if track:
