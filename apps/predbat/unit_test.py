@@ -486,6 +486,7 @@ from tests.select_tests import choose_tests
 from tests.test_select_tests import test_select_tests
 from tests.test_debug_history_capture import test_debug_history_capture, test_debug_history_capture_slot_alignment, test_debug_history_count_range
 from tests.test_additional_load_forecast import run_additional_load_forecast_tests
+from tests.test_load_filter_energy import run_load_filter_energy_tests
 
 # Mock the components and plugin system
 
@@ -755,6 +756,7 @@ def main():
         ("units", run_test_units, "Unit tests", False),
         ("manual_api", run_test_manual_api, "Manual API tests", False),
         ("additional_load_forecast", run_additional_load_forecast_tests, "Additional load forecast tests", False),
+        ("load_filter_energy", run_load_filter_energy_tests, "Metered appliance load filtering tests", False),
         ("manual_soc", run_test_manual_soc, "Manual SOC target tests", False),
         ("manual_soc_max", run_test_manual_soc_max, "Manual SOC maximum (ceiling) target tests (issue #1578)", False),
         ("manual_times", run_test_manual_times, "Manual times tests", False),
